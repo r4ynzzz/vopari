@@ -69,7 +69,7 @@ async function parseWithGemini(
 Extract ALL products and their prices from this grocery flyer or catalogue.
 Return ONLY a valid JSON array with no other text, no markdown, no explanation.
 Each item must have: item_name (string), price (number in ZAR), unit (string or null).
-Example: [{"item_name":"Full Cream Milk 2L","price":24.99,"unit":"2L"}]
+Example: [{"item_name":"Full Cream Milk 2L","price":24.99,"unit":"2L"}] or [{"item_name":"Bananas","price":9.99,"unit":"kg"}]
 If a product has multiple sizes, list each separately.
 If products come in combinations, list product combo and combo price.
 If you cannot extract any items, return an empty array [].`;
@@ -91,7 +91,7 @@ If you cannot extract any items, return an empty array [].`;
       };
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -103,7 +103,7 @@ If you cannot extract any items, return an empty array [].`;
         ],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 8192,
+          maxOutputTokens: 65536,
         },
       }),
     },
