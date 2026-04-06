@@ -71,6 +71,7 @@ Return ONLY a valid JSON array with no other text, no markdown, no explanation.
 Each item must have: item_name (string), price (number in ZAR), unit (string or null).
 Example: [{"item_name":"Full Cream Milk 2L","price":24.99,"unit":"2L"}]
 If a product has multiple sizes, list each separately.
+If products come in combinations, list product combo and combo price.
 If you cannot extract any items, return an empty array [].`;
 
   const isPdf = mimeType === "application/pdf";
@@ -90,7 +91,7 @@ If you cannot extract any items, return an empty array [].`;
       };
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
