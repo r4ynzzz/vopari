@@ -119,44 +119,68 @@ export default function UploadPage() {
         .single();
 
       if (docError) {
-        // Unique constraint on file_hash — doc already exists for this user
         if (docError.code === "23505") {
-          console.log("Doc already exists, fetching existing record...");
-          const { data: existingDoc, error: fetchError } = await supabase
+          console.log(
+            "Hash conflict — checking if this user already has this doc...",
+          );
+
+          // First check if THIS user already uploaded this file
+          const { data: ownDoc } = await supabase
             .from("uploaded_docs")
             .select("*")
             .eq("file_hash", fileHash)
             .eq("user_id", user.id)
-            .single();
+            .maybeSingle();
 
-          if (fetchError || !existingDoc) {
-            throw new Error("Could not retrieve existing document record");
-          }
+          if (ownDoc) {
+            // User already uploaded this exact file
+            if (ownDoc.parsed) {
+              const { data: existingItems } = await supabase
+                .from("parsed_items")
+                .select("*")
+                .eq("doc_id", ownDoc.id);
 
-          // If already parsed, load items directly and skip API call
-          if (existingDoc.parsed) {
-            const { data: existingItems } = await supabase
-              .from("parsed_items")
-              .select("*")
-              .eq("doc_id", existingDoc.id);
-
-            if (existingItems?.length) {
-              setParsedItems(existingItems);
-              setCached(true);
-              setState("done");
-              toast.success(`Loaded ${existingItems.length} items from cache`);
-              return;
+              if (existingItems?.length) {
+                setParsedItems(existingItems);
+                setCached(true);
+                setState("done");
+                toast.success(
+                  `Loaded ${existingItems.length} items from cache`,
+                );
+                return;
+              }
             }
-          }
+            doc = ownDoc;
+          } else {
+            // A different user uploaded this file — create a new doc record
+            // for this user with a slightly modified hash to avoid conflict
+            console.log(
+              "Different user uploaded same file — creating new record...",
+            );
+            const { data: newDoc, error: newDocError } = await supabase
+              .from("uploaded_docs")
+              .insert({
+                user_id: user.id,
+                store_name: storeName.trim() || null,
+                file_url: publicUrl,
+                file_hash: `${fileHash}_${user.id.slice(0, 8)}`,
+                doc_type: file.type === "application/pdf" ? "pdf" : "image",
+                parsed: false,
+              })
+              .select()
+              .single();
 
-          doc = existingDoc;
+            if (newDocError || !newDoc) {
+              console.error("New doc insert error:", newDocError);
+              throw new Error("Failed to create document record");
+            }
+
+            doc = newDoc;
+          }
         } else {
-          // Any other error
           console.error("Doc insert error:", docError);
           throw new Error(`Failed to create document: ${docError.message}`);
         }
-      } else {
-        doc = insertedDoc;
       }
 
       // At this point doc is guaranteed to be non-null
