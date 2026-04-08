@@ -181,6 +181,8 @@ export default function UploadPage() {
           console.error("Doc insert error:", docError);
           throw new Error(`Failed to create document: ${docError.message}`);
         }
+      } else {
+        doc = insertedDoc;
       }
 
       // At this point doc is guaranteed to be non-null
