@@ -44,7 +44,7 @@ export default async function DashboardLayout({
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-400 hidden sm:block truncate max-w-[180px]">
+            <span className="text-sm text-gray-400 hidden sm:block truncate max-w-45">
               {user.email}
             </span>
             <SignOutButton />
