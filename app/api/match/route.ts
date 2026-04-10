@@ -1,9 +1,9 @@
-// src/app/api/match/route.ts — full replacement
-
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function getUser() {
   const cookieStore = await cookies();
@@ -79,7 +79,9 @@ function preFilter(
     return withMatch.slice(0, limit).map((s) => s.item);
 
   // If not enough token matches, return top items anyway
-  return scored.slice(0, limit).map((s) => s.item);
+  if (!withMatch.length) return [];
+
+  return withMatch.slice(0, limit).map((s) => s.item);
 }
 
 // LLM semantic matching — finds best matches from candidates
@@ -138,7 +140,7 @@ Reply with ONLY the array like [0,1,3] or []`;
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: 128,
+            maxOutputTokens: 512,
           },
         }),
       },
@@ -250,43 +252,43 @@ export async function POST(request: Request) {
     );
 
     // Match each list item using pre-filter + semantic matching
-    const results = await Promise.all(
-      listItems.map(async (listItem) => {
-        console.log(`Matching: "${listItem.item_name}"`);
+    // With this — sequential to avoid rate limiting:
+    const results = [];
+    for (const listItem of listItems) {
+      const candidates =
+        searchableItems.length <= 200
+          ? searchableItems
+          : preFilter(listItem.item_name, searchableItems);
 
-        // Step 1: Pre-filter to get top candidates via token matching
-        const candidates = preFilter(listItem.item_name, searchableItems);
-        console.log(`  Pre-filter: ${candidates.length} candidates`);
+      console.log(`"${listItem.item_name}": ${candidates.length} candidates`);
 
-        // Step 2: Semantic match using LLM
-        const matched = await semanticMatch(listItem.item_name, candidates);
-        console.log(`  Semantic: ${matched.length} matches`);
+      const matched = await semanticMatch(listItem.item_name, candidates);
+      await delay(300); // 300ms between calls — avoids rate limit spikes
 
-        if (!matched.length) {
-          return {
-            listItem: { id: listItem.id, item_name: listItem.item_name },
-            matches: [],
-            cheapest: null,
-          };
-        }
-
-        // Deduplicate by store — keep cheapest per store
-        const seenStores = new Set<string>();
-        const deduplicated = matched
-          .sort((a, b) => a.price - b.price)
-          .filter((m) => {
-            if (seenStores.has(m.store_name)) return false;
-            seenStores.add(m.store_name);
-            return true;
-          });
-
-        return {
+      if (!matched.length) {
+        results.push({
           listItem: { id: listItem.id, item_name: listItem.item_name },
-          matches: deduplicated.slice(0, 5),
-          cheapest: deduplicated[0],
-        };
-      }),
-    );
+          matches: [],
+          cheapest: null,
+        });
+        continue;
+      }
+
+      const seenStores = new Set<string>();
+      const deduplicated = matched
+        .sort((a, b) => a.price - b.price)
+        .filter((m) => {
+          if (seenStores.has(m.store_name)) return false;
+          seenStores.add(m.store_name);
+          return true;
+        });
+
+      results.push({
+        listItem: { id: listItem.id, item_name: listItem.item_name },
+        matches: deduplicated.slice(0, 5),
+        cheapest: deduplicated[0] ?? null,
+      });
+    }
 
     // Save best matches to price_matches table
     const toInsert = results
