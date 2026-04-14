@@ -53,17 +53,65 @@ export default async function DocumentsPage() {
     .from("uploaded_docs")
     .select(
       `
-      id,
-      store_name,
-      doc_type,
-      parsed,
-      file_url,
-      created_at,
-      parsed_items(count)
-    `,
+    id,
+    store_name,
+    doc_type,
+    parsed,
+    file_url,
+    created_at,
+    valid_from,
+    valid_until,
+    parsed_items(count)
+  `,
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  const getExpiryStatus = (doc: any) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // If we have a valid_until date, use that
+    if (doc.valid_until) {
+      const expiry = new Date(doc.valid_until);
+      expiry.setHours(23, 59, 59, 999);
+      if (today > expiry) return "expired";
+
+      const daysLeft = Math.ceil(
+        (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (daysLeft <= 3) return "expiring-soon";
+      return "valid";
+    }
+
+    // Fallback to upload date if no validity dates found
+    const daysOld = Math.floor(
+      (Date.now() - new Date(doc.created_at).getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (daysOld > 30) return "expired";
+    if (daysOld > 14) return "stale";
+    return "valid";
+  };
+
+  const formatValidityPeriod = (doc: any) => {
+    if (!doc.valid_from && !doc.valid_until) return null;
+    const from = doc.valid_from
+      ? new Date(doc.valid_from).toLocaleDateString("en-ZA", {
+          day: "numeric",
+          month: "short",
+        })
+      : null;
+    const until = doc.valid_until
+      ? new Date(doc.valid_until).toLocaleDateString("en-ZA", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : null;
+    if (from && until) return `${from} – ${until}`;
+    if (until) return `Until ${until}`;
+    return null;
+  };
 
   const formatDate = (dateStr: string) => {
     const daysAgo = Math.floor(
@@ -104,20 +152,25 @@ export default async function DocumentsPage() {
 
       <div className="space-y-3">
         {docs?.map((doc) => {
-          const itemCount = (doc.parsed_items as any)?.[0]?.count ?? 0;
           const daysOld = getDaysOld(doc.created_at);
           const isStale = daysOld > 14;
           const isExpired = daysOld > 30;
+
+          const status = getExpiryStatus(doc);
+          const validityPeriod = formatValidityPeriod(doc);
+          const itemCount = (doc.parsed_items as any)?.[0]?.count ?? 0;
 
           return (
             <Card
               key={doc.id}
               className={
-                isExpired
+                status === "expired"
                   ? "opacity-40 border-red-100"
-                  : isStale
-                    ? "opacity-60"
-                    : ""
+                  : status === "expiring-soon"
+                    ? "border-amber-200"
+                    : status === "stale"
+                      ? "opacity-60"
+                      : ""
               }
             >
               <CardContent className="p-4">
@@ -127,23 +180,30 @@ export default async function DocumentsPage() {
                       {doc.store_name ?? "Unnamed store"}
                     </p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-xs text-gray-400">
-                        {formatDate(doc.created_at)}
-                      </span>
-                      {isExpired && (
+                      {validityPeriod ? (
+                        <span className="text-xs text-gray-500 font-medium">
+                          {validityPeriod}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">
+                          Uploaded {formatDate(doc.created_at)}
+                        </span>
+                      )}
+                      {status === "expired" && (
                         <span className="text-xs text-red-400 font-medium">
                           · Expired
                         </span>
                       )}
-                      {!isExpired && isStale && (
-                        <span className="text-xs text-amber-500">
-                          · Prices may be outdated
+                      {status === "expiring-soon" && (
+                        <span className="text-xs text-amber-500 font-medium">
+                          · Expiring soon
                         </span>
                       )}
-                      <span className="text-xs text-gray-300">·</span>
-                      <span className="text-xs text-gray-400 uppercase">
-                        {doc.doc_type ?? "file"}
-                      </span>
+                      {status === "stale" && (
+                        <span className="text-xs text-amber-500">
+                          · May be outdated
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -160,8 +220,6 @@ export default async function DocumentsPage() {
                         Pending
                       </Badge>
                     )}
-
-                    {/* Delete button */}
                     <form
                       action={async () => {
                         "use server";
@@ -178,13 +236,6 @@ export default async function DocumentsPage() {
                     </form>
                   </div>
                 </div>
-
-                {isExpired && (
-                  <p className="text-xs text-red-400 mt-2">
-                    This flyer is over 30 days old and prices are no longer
-                    reliable. Delete it and upload a fresh one.
-                  </p>
-                )}
               </CardContent>
             </Card>
           );

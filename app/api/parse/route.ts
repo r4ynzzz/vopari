@@ -42,37 +42,115 @@ interface ParsedItemRaw {
   unit?: string | null;
 }
 
-function safeParseJSON(text: string): ParsedItemRaw[] {
+interface ParseResponse {
+  items: ParsedItemRaw[];
+  valid_from: string | null;
+  valid_until: string | null;
+  rateLimited?: boolean;
+}
+
+function safeParseResponse(text: string): ParseResponse {
+  const empty = { items: [], valid_from: null, valid_until: null };
+
   try {
     const clean = text
       .replace(/```json\n?/gi, "")
       .replace(/```\n?/g, "")
       .trim();
+
     const parsed = JSON.parse(clean);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is ParsedItemRaw =>
-        typeof item.item_name === "string" &&
-        typeof item.price === "number" &&
-        item.price > 0,
-    );
+
+    // New format — object with items array and dates
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.items)) {
+      return {
+        items: parsed.items.filter(
+          (item: any): item is ParsedItemRaw =>
+            typeof item.item_name === "string" &&
+            typeof item.price === "number" &&
+            item.price > 0,
+        ),
+        valid_from: parsed.valid_from ?? null,
+        valid_until: parsed.valid_until ?? null,
+      };
+    }
+
+    // Old format — plain array (fallback)
+    if (Array.isArray(parsed)) {
+      return {
+        items: parsed.filter(
+          (item): item is ParsedItemRaw =>
+            typeof item.item_name === "string" &&
+            typeof item.price === "number" &&
+            item.price > 0,
+        ),
+        valid_from: null,
+        valid_until: null,
+      };
+    }
+
+    return empty;
   } catch {
-    return [];
+    // Partial recovery — extract items with regex
+    const itemRegex =
+      /\{[^{}]*"item_name"\s*:\s*"[^"]+"\s*,[^{}]*"price"\s*:\s*[\d.]+[^{}]*\}/g;
+    const matches = text.match(itemRegex);
+    if (!matches?.length) return empty;
+
+    const items: ParsedItemRaw[] = [];
+    for (const match of matches) {
+      try {
+        const item = JSON.parse(match);
+        if (
+          typeof item.item_name === "string" &&
+          typeof item.price === "number" &&
+          item.price > 0
+        )
+          items.push(item);
+      } catch {}
+    }
+
+    // Also try to extract dates from text even if JSON failed
+    const datePattern = /(\d{4}-\d{2}-\d{2})/g;
+    const dates = text.match(datePattern);
+
+    return {
+      items,
+      valid_from: dates?.[0] ?? null,
+      valid_until: dates?.[1] ?? null,
+    };
   }
 }
 
 async function parseWithGemini(
   base64: string,
   mimeType: string,
-): Promise<ParsedItemRaw[]> {
+): Promise<ParseResponse> {
   const prompt = `You are a grocery price extraction assistant.
 Extract ALL products and their prices from this grocery flyer or catalogue.
-Return ONLY a valid JSON array with no other text, no markdown, no explanation.
-Each item must have: item_name (string), price (number in ZAR), unit (string or null).
-Example: [{"item_name":"Full Cream Milk 2L","price":24.99,"unit":"2L"}] or [{"item_name":"Bananas","price":9.99,"unit":"kg"}]
+
+Also extract the flyer validity dates if present (e.g. "Valid 23 March to 5 April", "Specials from Mon 1 Apr - Sun 7 Apr").
+
+Return a JSON object with two keys:
+1. "items" - array of products
+2. "valid_from" - start date in YYYY-MM-DD format, or null if not found
+3. "valid_until" - end date in YYYY-MM-DD format, or null if not found
+
+Example response:
+{
+  "valid_from": "2025-03-23",
+  "valid_until": "2025-04-05",
+  "items": [
+    {"item_name":"Full Cream Milk 2L","price":24.99,"unit":"2L"}
+  ]
+}
+
 If a product has multiple sizes, list each separately.
 If products come in combinations, list product combo and combo price.
-If you cannot extract any items, return an empty array [].`;
+If you cannot extract any items, return an empty array [].
+
+If no validity dates are found, set both to null.
+Return ONLY this JSON object, no other text, no markdown.
+`;
 
   const isPdf = mimeType === "application/pdf";
 
@@ -114,12 +192,17 @@ If you cannot extract any items, return an empty array [].`;
 
   if (data.error) {
     console.error("Gemini API error:", data.error);
-    return [];
+    return {
+      items: [],
+      valid_from: null,
+      valid_until: null,
+      rateLimited: data.error.code === 429,
+    };
   }
 
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   console.log("Gemini raw text preview:", text.slice(0, 300));
-  return safeParseJSON(text);
+  return safeParseResponse(text);
 }
 
 /*
@@ -271,7 +354,8 @@ export async function POST(request: Request) {
     console.log("Base64 length:", base64.length);
 
     // Parse with Gemini first
-    let items = await parseWithGemini(base64, mimeType);
+    let parseResult = await parseWithGemini(base64, mimeType);
+    let items = parseResult.items;
     console.log("Gemini returned:", items.length, "items");
 
     // Fall back to Claude if Gemini returns too few
@@ -309,13 +393,19 @@ export async function POST(request: Request) {
 
     await supabase
       .from("uploaded_docs")
-      .update({ parsed: true })
+      .update({
+        parsed: true,
+        valid_from: parseResult.valid_from ?? null,
+        valid_until: parseResult.valid_until ?? null,
+      })
       .eq("id", docId);
 
     return NextResponse.json({
       items: savedItems,
       cached: false,
       count: savedItems?.length ?? 0,
+      valid_from: parseResult.valid_from,
+      valid_until: parseResult.valid_until,
     });
   } catch (error: any) {
     console.error("Parse error:", error);

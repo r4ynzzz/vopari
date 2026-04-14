@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
+  env: {
+    CRON_SECRET: process.env.CRON_SECRET,
+  },
 };
 
 export default nextConfig;
