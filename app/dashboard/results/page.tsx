@@ -44,6 +44,7 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(false);
   const [hasCompared, setHasCompared] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [cheapestTotal, setCheapestTotal] = useState<number>(0);
 
   useEffect(() => {
     createClient()
@@ -90,6 +91,22 @@ export default function ResultsPage() {
       setResults(data.results);
       setSummary(data.summary);
       setHasCompared(true);
+
+      const cheapestTotal = data.results
+        .filter((r: MatchResult) => r.cheapest)
+        .reduce(
+          (sum: number, r: MatchResult) => sum + Number(r.cheapest!.price),
+          0,
+        );
+
+      const total = data.results
+        .filter((r: MatchResult) => r.cheapest)
+        .reduce(
+          (sum: number, r: MatchResult) => sum + Number(r.cheapest!.price),
+          0,
+        );
+      setCheapestTotal(total);
+
       toast.success(
         `Found prices for ${data.summary.matchedItems} of ${data.summary.totalItems} items`,
       );
@@ -128,6 +145,7 @@ export default function ResultsPage() {
             setHasCompared(false);
             setResults([]);
             setSummary(null);
+            setCheapestTotal(0);
           }}
           className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
@@ -171,7 +189,7 @@ export default function ResultsPage() {
 
       {/* Summary cards */}
       {summary && !loading && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-gray-50 rounded-xl p-4 text-center">
             <p className="text-2xl font-semibold text-gray-800">
               {summary.totalItems}
@@ -184,12 +202,38 @@ export default function ResultsPage() {
             </p>
             <p className="text-xs text-emerald-600 mt-1">Prices found</p>
           </div>
-          <div className="bg-blue-50 rounded-xl p-4 text-center">
-            <p className="text-2xl font-semibold text-blue-700">
-              R{summary.potentialSaving.toFixed(2)}
+
+          {/* Total cost card — full width */}
+          <div className="col-span-2 bg-emerald-600 rounded-xl p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-emerald-100">
+                Cheapest total
+              </p>
+              <p className="text-xs text-emerald-300 mt-0.5">
+                Based on lowest price per item
+              </p>
+            </div>
+            <p className="text-3xl font-semibold text-white">
+              R{cheapestTotal.toFixed(2)}
             </p>
-            <p className="text-xs text-blue-600 mt-1">Potential saving</p>
           </div>
+
+          {/* Potential saving — only show if there are alternatives */}
+          {summary.potentialSaving > 0 && (
+            <div className="col-span-2 bg-blue-50 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700">
+                  Potential saving
+                </p>
+                <p className="text-xs text-blue-500 mt-0.5">
+                  vs most expensive option per item
+                </p>
+              </div>
+              <p className="text-2xl font-semibold text-blue-700">
+                R{summary.potentialSaving.toFixed(2)}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -204,6 +248,25 @@ export default function ResultsPage() {
             const isExpanded = expandedItems.has(listItem.id);
             const hasMatches = matches.length > 0;
             const hasAlternatives = matches.length > 1;
+
+            {
+              results.filter((r) => r.cheapest).length > 0 && (
+                <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-emerald-800 text-sm">
+                      Total for {results.filter((r) => r.cheapest).length}{" "}
+                      matched items
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-0.5">
+                      Cheapest available price per item
+                    </p>
+                  </div>
+                  <p className="text-2xl font-semibold text-emerald-700">
+                    R{cheapestTotal.toFixed(2)}
+                  </p>
+                </div>
+              );
+            }
 
             return (
               <Card
