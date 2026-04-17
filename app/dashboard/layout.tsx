@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/dashboard/upload", label: "Upload" },
   { href: "/dashboard/results", label: "Results" },
   { href: "/dashboard/documents", label: "Flyers" },
+  { href: "/dashboard/feedback", label: "Feedback" },
 ];
 
 export default async function DashboardLayout({
