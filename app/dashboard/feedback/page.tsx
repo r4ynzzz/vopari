@@ -89,7 +89,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
             i < current
               ? "bg-emerald-600 flex-1"
               : i === current
-                ? "bg-emerald-600 flex-[2]"
+                ? "bg-emerald-600 flex-2"
                 : "bg-gray-200 flex-1"
           }`}
         />
