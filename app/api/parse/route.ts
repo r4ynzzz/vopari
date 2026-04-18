@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { parseRateLimit } from "@/lib/rateLimit";
 
 async function getUser() {
   const cookieStore = await cookies();
@@ -169,7 +170,7 @@ Return ONLY this JSON object, no other text, no markdown.
       };
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -267,11 +268,92 @@ export async function POST(request: Request) {
     if (!user)
       return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
 
+    // Rate limit check
+    const { success, limit, reset, remaining } = await parseRateLimit.limit(
+      user.id,
+    );
+    if (!success) {
+      return NextResponse.json(
+        {
+          error: "Too many parse requests. Please wait before trying again.",
+          retryAfter: new Date(reset).toISOString(),
+        },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": limit.toString(),
+            "X-RateLimit-Remaining": remaining.toString(),
+            "X-RateLimit-Reset": new Date(reset).toISOString(),
+            "Retry-After": Math.ceil((reset - Date.now()) / 1000).toString(),
+          },
+        },
+      );
+    }
+
     const supabase = createAdminClient();
     const body = await request.json();
     const { docId, fileUrl, mimeType, fileHash } = body;
 
     console.log("Parse called:", { docId, mimeType, fileHash });
+
+    // 1. Validate mimeType — never trust the client
+    const ALLOWED_MIME_TYPES = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
+    if (!mimeType || !ALLOWED_MIME_TYPES.includes(mimeType)) {
+      return NextResponse.json(
+        {
+          error: "Invalid file type. Only JPG, PNG, WebP and PDF are allowed.",
+        },
+        { status: 400 },
+      );
+    }
+
+    // 2. Validate docId is a valid UUID
+    if (
+      !docId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+        docId,
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Invalid document ID." },
+        { status: 400 },
+      );
+    }
+
+    // 3. Validate fileHash — SHA-256 is 64 hex chars
+    //    Also allows the user-scoped variant (hash_userid8chars)
+    if (!fileHash || !/^[a-f0-9]{64}(_[a-f0-9]{8})?$/.test(fileHash)) {
+      return NextResponse.json(
+        { error: "Invalid file hash." },
+        { status: 400 },
+      );
+    }
+
+    // 4. Validate fileUrl is from your own Supabase project
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    if (!fileUrl || !fileUrl.startsWith(SUPABASE_URL)) {
+      return NextResponse.json({ error: "Invalid file URL." }, { status: 400 });
+    }
+
+    // 5. Verify the doc belongs to this user — prevent IDOR
+    const { data: docOwner, error: ownerError } = await supabase
+      .from("uploaded_docs")
+      .select("id, user_id")
+      .eq("id", docId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (ownerError || !docOwner) {
+      return NextResponse.json(
+        { error: "Document not found." },
+        { status: 404 },
+      );
+    }
 
     // Check cache — same file uploaded before
     const { data: existingDoc } = await supabase
@@ -339,12 +421,35 @@ export async function POST(request: Request) {
       throw new Error(`Failed to fetch file: ${fileResponse.status}`);
     }
 
+    //Enforce file size server-side — 20MB max
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB in bytes
+    const contentLength = fileResponse.headers.get("content-length");
+    if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File is too large. Maximum size is 20MB." },
+        { status: 400 },
+      );
+    }
+
     const buffer = await fileResponse.arrayBuffer();
     console.log("File buffer size bytes:", buffer.byteLength);
 
-    if (buffer.byteLength === 0) {
-      throw new Error("File is empty — storage fetch returned no data");
+    //Check the actual buffer size after download
+    if (buffer.byteLength > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File is too large. Maximum size is 20MB." },
+        { status: 400 },
+      );
     }
+
+    //Reject empty files
+    if (buffer.byteLength === 0) {
+      return NextResponse.json(
+        { error: "File appears to be empty." },
+        { status: 400 },
+      );
+    }
+    console.log("File buffer size:", buffer.byteLength);
 
     // Convert to base64
     const bytes = new Uint8Array(buffer);

@@ -1,5 +1,4 @@
-// src/app/api/feedback/route.ts
-
+import { feedbackRateLimit } from "@/lib/rateLimit";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
@@ -43,6 +42,15 @@ export async function POST(request: Request) {
     const user = await getUser();
     if (!user)
       return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+
+    // Rate limit check
+    const { success } = await feedbackRateLimit.limit(user.id);
+    if (!success) {
+      return NextResponse.json(
+        { error: "You have already submitted feedback recently. Thank you!" },
+        { status: 429 },
+      );
+    }
 
     const body = await request.json();
     const {

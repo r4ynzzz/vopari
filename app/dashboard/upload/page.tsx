@@ -206,6 +206,14 @@ export default function UploadPage() {
       }
       if (!res.ok) {
         const err = await res.json();
+        // Handle rate limit specifically
+        if (res.status === 429) {
+          setState("error");
+          toast.error(
+            "Too many uploads. Please wait a few minutes before trying again.",
+          );
+          return;
+        }
         throw new Error(err.error || "Parse failed");
       }
 
@@ -233,6 +241,7 @@ export default function UploadPage() {
 
       <div className="space-y-4">
         <Input
+          required
           placeholder="Store name (optional — e.g. Checkers, Pick n Pay)"
           value={storeName}
           onChange={(e) => setStoreName(e.target.value)}
