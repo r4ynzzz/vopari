@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { matchRateLimit } from "@/lib/rateLimit";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
