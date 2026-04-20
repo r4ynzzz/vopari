@@ -164,7 +164,7 @@ export default async function LandingPage() {
             Vopari
           </span>
           <nav className="hidden md:flex items-center gap-8">
-            {["How it works", "Features", "Pricing"].map((item) => (
+            {["How it works", "Features"].map((item) => (
               <a
                 key={item}
                 href={`#${item.toLowerCase().replace(/ /g, "-")}`}
@@ -387,11 +387,11 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ── TICKER ────────────────────────────────────── */}
+      {/* ── TICKER ────────────────────────────────────── 
       <div className="ticker-wrap py-3">
         <div className="ticker-track animate-ticker">
           {[...Array(2)].map((_, i) => (
-            <span key={i} className="inline-flex items-center">
+            <span key={`group-${i}`} className="inline-flex items-center">
               {[
                 "Checkers",
                 "Pick n Pay",
@@ -401,17 +401,9 @@ export default async function LandingPage() {
                 "Game",
                 "Makro",
                 "Clicks",
-                "Checkers",
-                "Pick n Pay",
-                "Shoprite",
-                "Woolworths",
-                "Spar",
-                "Game",
-                "Makro",
-                "Clicks",
-              ].map((store) => (
+              ].map((store, j) => (
                 <span
-                  key={`${store}-${i}`}
+                  key={`${i}-${j}-${store}`}
                   className="font-body text-xs font-medium text-slate-400 mx-8 tracking-widest uppercase"
                 >
                   {store}
@@ -422,6 +414,7 @@ export default async function LandingPage() {
           ))}
         </div>
       </div>
+*/}
 
       {/* ── HOW IT WORKS ──────────────────────────────── */}
       <section id="how-it-works" className="py-28 max-w-6xl mx-auto px-6">
@@ -548,7 +541,7 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ── SOCIAL PROOF ──────────────────────────────── */}
+      {/* ── SOCIAL PROOF ──────────────────────────────── 
       <section className="py-24 max-w-6xl mx-auto px-6">
         <div className="text-center mb-14">
           <p className="font-body text-xs font-semibold tracking-widest text-emerald-600 uppercase mb-3">
@@ -630,8 +623,9 @@ export default async function LandingPage() {
           ))}
         </div>
       </section>
+      */}
 
-      {/* ── PRICING ───────────────────────────────────── */}
+      {/* ── PRICING ───────────────────────────────────── 
       <section id="pricing" className="py-28 bg-[#f0f7f3]">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -647,7 +641,7 @@ export default async function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-5 items-start">
-            {/* Free */}
+            {/* Free *
             <Card className="rounded-2xl border-slate-200 bg-white p-8">
               <CardContent className="p-0">
                 <p className="font-body text-xs font-semibold tracking-widest text-slate-400 uppercase mb-3">
@@ -688,7 +682,7 @@ export default async function LandingPage() {
               </CardContent>
             </Card>
 
-            {/* Saver — featured */}
+             Saver — featured 
             <Card className="rounded-2xl border-0 bg-emerald-700 p-8 relative shadow-2xl shadow-emerald-200 md:-mt-4 md:mb-4">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                 <Badge className="font-body text-[10px] bg-amber-400 text-amber-900 border-0 rounded-full px-3 py-1 shadow-sm">
@@ -733,7 +727,7 @@ export default async function LandingPage() {
               </CardContent>
             </Card>
 
-            {/* Power */}
+             Power 
             <Card className="rounded-2xl border-slate-200 bg-white p-8">
               <CardContent className="p-0">
                 <p className="font-body text-xs font-semibold tracking-widest text-slate-400 uppercase mb-3">
@@ -782,7 +776,7 @@ export default async function LandingPage() {
           </p>
         </div>
       </section>
-
+      */}
       {/* ── CTA ───────────────────────────────────────── */}
       <section className="py-32 max-w-4xl mx-auto px-6 text-center">
         <p className="font-body text-xs font-semibold tracking-widest text-emerald-600 uppercase mb-6">
@@ -814,15 +808,24 @@ export default async function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <span className="font-display text-xl text-emerald-700">Vopari</span>
           <nav className="flex flex-wrap justify-center gap-6">
-            {["Privacy Policy", "Terms of Service", "Contact"].map((item) => (
-              <a
-                key={item}
-                href="#"
-                className="font-body text-xs text-slate-400 hover:text-slate-700 transition-colors"
-              >
-                {item}
-              </a>
-            ))}
+            <a
+              href="/privacy"
+              className="font-body text-xs text-slate-400 hover:text-slate-700 transition-colors"
+            >
+              Privacy Policy
+            </a>
+            <a
+              href="/terms"
+              className="font-body text-xs text-slate-400 hover:text-slate-700 transition-colors"
+            >
+              Terms of Service
+            </a>
+            <a
+              href="/contact"
+              className="font-body text-xs text-slate-400 hover:text-slate-700 transition-colors"
+            >
+              Contact
+            </a>
           </nav>
           <p className="font-body text-xs text-slate-400">
             © {new Date().getFullYear()} Vopari. Made in South Africa.

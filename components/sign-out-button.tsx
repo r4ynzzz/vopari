@@ -10,12 +10,16 @@ export default function SignOutButton() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push("/");
     router.refresh();
   };
 
   return (
-    <Button variant="ghost" size="sm" onClick={handleSignOut}>
+    <Button
+      variant="outline"
+      onClick={handleSignOut}
+      className="h-10 px-4 text-sm font-medium text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors shrink-0"
+    >
       Sign out
     </Button>
   );
