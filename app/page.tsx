@@ -789,7 +789,7 @@ export default async function LandingPage() {
         </h2>
         <p className="font-body text-lg text-slate-500 font-light max-w-md mx-auto mb-10">
           No credit card required. Start with 3 free parses and see exactly how
-          much you could be saving every week.
+          much you could be saving.
         </p>
         <Button
           asChild
