@@ -6,6 +6,7 @@ const navLinks = [
   { href: "/dashboard/results", label: "Results", icon: "💰" },
   { href: "/dashboard/documents", label: "Flyers", icon: "📄" },
   { href: "/dashboard/feedback", label: "Feedback", icon: "✦" },
+  { href: "/dashboard/settings", label: "Settings", icon: "⚙️" },
 ];
 
 export default function BottomNav() {

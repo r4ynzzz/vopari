@@ -5,6 +5,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
+
+function DeletedBanner() {
+  // Only runs client-side to read search params
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.get("deleted")) return null;
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm px-5 py-3 rounded-full shadow-lg">
+      Your account has been permanently deleted.
+    </div>
+  );
+}
 
 export default async function LandingPage() {
   // Redirect signed-in users straight to dashboard
@@ -156,6 +169,8 @@ export default async function LandingPage() {
       `}</style>
 
       <div className="grain" />
+
+      <DeletedBanner />
 
       {/* ── NAV ───────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-[#f7f9f7]/90 backdrop-blur-xl border-b border-[#e2e8e4]">
